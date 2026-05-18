@@ -98,14 +98,21 @@
                             {% endfor %}
                         </div>
                         
-                        <button class="btn btn-outline-primary btn-sm w-100 fw-bold btn-add-carrinho" 
-                                data-id="{{ item.id }}" 
-                                data-sku="{{ item.sku }}"
-                                data-nome="{{ item.nome }}"
-                                data-preco="{{ item.preco }}"
-                                data-estoques='{{ item.estoques | tojson }}'>
-                            <i class="fas fa-plus"></i> Adicionar
-                        </button>
+                        <div class="row mt-auto">
+                            <div class="col-4 pe-1">
+                                <input type="number" class="form-control form-control-sm text-center fw-bold" id="qtd_add_{{ item.id }}" value="1" min="1">
+                            </div>
+                            <div class="col-8 ps-1">
+                                <button class="btn btn-outline-primary btn-sm w-100 fw-bold btn-add-carrinho" 
+                                        data-id="{{ item.id }}" 
+                                        data-sku="{{ item.sku }}"
+                                        data-nome="{{ item.nome }}"
+                                        data-preco="{{ item.preco }}"
+                                        data-estoques='{{ item.estoques | tojson }}'>
+                                    <i class="fas fa-plus"></i> Add
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 {% else %}
@@ -341,14 +348,21 @@
             const nome = this.getAttribute('data-nome');
             const preco = parseFloat(this.getAttribute('data-preco'));
             const estoques = JSON.parse(this.getAttribute('data-estoques'));
+            
+            // Pega a quantidade selecionada na caixinha do produto
+            const inputQtd = document.getElementById(`qtd_add_${id}`);
+            const qtdAdicionar = inputQtd ? parseInt(inputQtd.value) : 1;
 
             // Verifica se já está no carrinho
             const itemExistente = carrinho.find(item => item.id === id);
             if (itemExistente) {
-                itemExistente.quantidade += 1;
+                itemExistente.quantidade += qtdAdicionar;
             } else {
-                carrinho.push({ id, sku, nome, preco, quantidade: 1, estoques });
+                carrinho.push({ id, sku, nome, preco, quantidade: qtdAdicionar, estoques });
             }
+            
+            // Reseta a caixinha para 1 após adicionar
+            if (inputQtd) inputQtd.value = 1;
             
             atualizarUI();
             
