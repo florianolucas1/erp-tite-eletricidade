@@ -20,6 +20,13 @@ with app.app_context():
         db.session.commit()
         print('Lojas base criadas.')
         
+    # Garante que existe pelo menos uma categoria para os produtos
+    if not Categoria.query.first():
+        cat_default = Categoria(nome='Geral')
+        db.session.add(cat_default)
+        db.session.commit()
+        print('Categoria base criada.')
+        
     loja_matriz = Loja.query.first()
     
     # O usuário admin master deve ser sempre verificado e criado independentemente das Lojas
