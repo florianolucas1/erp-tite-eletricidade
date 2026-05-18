@@ -984,8 +984,11 @@ def pdv_checkout():
     prazo_dias = dados.get('prazo_dias') # opcional, padrão 7
     carrinho = dados.get('carrinho', [])
     
-    if not carrinho or not cliente_id or not loja_id or tipo_operacao not in ['VENDA_DIRETA', 'CONSIGNACAO']:
+    if not carrinho or not loja_id or tipo_operacao not in ['VENDA_DIRETA', 'CONSIGNACAO']:
         return jsonify({"erro": "Dados insuficientes ou operação inválida."}), 400
+        
+    if tipo_operacao == 'CONSIGNACAO' and not cliente_id:
+        return jsonify({"erro": "A consignação exige um cliente cadastrado."}), 400
         
     try:
         data_limite_calc = None
