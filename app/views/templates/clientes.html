@@ -97,7 +97,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Telefone</label>
-                            <input type="text" class="form-control" id="c_telefone">
+                            <input type="text" class="form-control" id="c_telefone" placeholder="(19) 90000-0000" oninput="mascaraTelefone(event)">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">E-mail</label>
@@ -228,6 +228,25 @@
         toggleCamposPessoa();
         const modal = new bootstrap.Modal(document.getElementById('modalNovoCliente'));
         modal.show();
+    }
+
+    function mascaraTelefone(event) {
+        let input = event.target;
+        let valor = input.value.replace(/\D/g, '');
+        
+        if (valor.length > 11) valor = valor.slice(0, 11);
+        
+        if (valor.length > 10) {
+            valor = valor.replace(/^(\d{2})(\d{5})(\d{4}).*/, '($1) $2-$3');
+        } else if (valor.length > 6) {
+            valor = valor.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, '($1) $2-$3');
+        } else if (valor.length > 2) {
+            valor = valor.replace(/^(\d{2})(\d{0,5})/, '($1) $2');
+        } else if (valor.length > 0) {
+            valor = valor.replace(/^(\d{0,2})/, '($1');
+        }
+        
+        input.value = valor;
     }
 
     async function abrirModalEditar(id) {
