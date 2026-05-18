@@ -427,13 +427,19 @@
             itemDiv.className = 'cart-item d-flex justify-content-between align-items-center';
             itemDiv.innerHTML = `
                 <div style="flex: 1;">
-                    <div class="fw-bold text-dark lh-sm" style="font-size: 0.9rem;">${item.nome}</div>
-                    <div class="text-muted" style="font-size: 0.8rem;">${item.sku} | R$ ${item.preco.toFixed(2)}</div>
+                    <div class="fw-bold text-dark lh-sm" style="font-size: 0.9rem;">
+                        ${item.nome}
+                    </div>
+                    <div class="text-muted mt-1" style="font-size: 0.8rem;">${item.sku} | R$ ${item.preco.toFixed(2)}</div>
                     ${alertaEstoqueHTML}
                 </div>
-                <div class="d-flex align-items-center ms-2">
-                    <input type="number" class="form-control form-control-sm text-center fw-bold me-2" style="width: 50px;" min="1" value="${item.quantidade}" onchange="mudarQtd(${index}, this.value)">
-                    <button class="btn btn-sm btn-light text-danger" onclick="removerItem(${index})"><i class="fas fa-trash"></i></button>
+                <div class="d-flex align-items-center justify-content-end ms-2">
+                    <div class="d-flex align-items-center bg-white border rounded shadow-sm me-2">
+                        <button class="btn btn-sm text-secondary border-0 px-2" style="background: none;" onclick="mudarQtd(${index}, ${item.quantidade - 1})"><i class="fas fa-minus" style="font-size: 0.7rem;"></i></button>
+                        <span class="fw-bold text-dark px-2 text-center" style="min-width: 32px; font-size: 0.95rem;">${item.quantidade}</span>
+                        <button class="btn btn-sm text-primary border-0 px-2" style="background: none;" onclick="mudarQtd(${index}, ${item.quantidade + 1})"><i class="fas fa-plus" style="font-size: 0.7rem;"></i></button>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger border-0 px-2" onclick="removerItem(${index})"><i class="fas fa-trash"></i></button>
                 </div>
             `;
             listaCarrinho.appendChild(itemDiv);
