@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block head %}
+<title>Gestão de Produtos - Tite Eletricidade</title>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-secondary"><i class="fas fa-box text-primary me-2"></i> Gestão de Produtos</h2>
+        <button class="btn btn-primary" onclick="abrirModalCriar()">
+            <i class="fas fa-plus"></i> Novo Produto
+        </button>
+    </div>
+
+    <!-- Lista de Produtos -->
+    <div class="card shadow-sm p-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>SKU</th>
+                        <th>Produto</th>
+                        <th>NF de Compra</th>
+                        <th class="text-end">Preço Unitário</th>
+                        <th class="text-center">Qtd. Total/Física</th>
+                        <th class="text-center">Disponível para Venda</th>
+                        <th class="text-center">Em Consignação</th>
+                        <th class="text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in produtos %}
+                    <tr>
+                        <td class="fw-bold text-muted">{{ p.sku }}</td>
+                        <td class="fw-bold">{{ p.nome }}</td>
+                        <td>{{ p.nf_compra or '-' }}</td>
+                        <td class="text-end text-success fw-bold">R$ {{ "%.2f"|format(p.preco) }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-secondary fs-6">{{ p.qtd_fisica }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge {% if p.qtd_disponivel > 0 %}bg-success{% else %}bg-danger{% endif %} fs-6">
+                                {{ p.qtd_disponivel }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            {% if p.qtd_consignacao > 0 %}
+                            <span class="badge bg-warning text-dark fs-6">{{ p.qtd_consignacao }}</span>
+                            {% else %}
+                            <span class="badge bg-light text-muted border fs-6">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-warning me-1" onclick="abrirModalEditar({{ p.id }})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="apagarProduto({{ p.id }})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">Nenhum produto cadastrado no catálogo.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Produto -->
+<div class="modal fade" id="modalProduto" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="tituloModalProduto"><i class="fas fa-box"></i> Produto</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formProduto">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">SKU (Código do Produto) *</label>
+                        <input type="text" class="form-control" id="p_sku" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nome do Produto *</label>
+                        <input type="text" class="form-control" id="p_nome" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Preço Unitário (R$) *</label>
+                            <input type="number" class="form-control" id="p_preco" step="0.01" min="0" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Quantidade em Estoque</label>
+                            <input type="number" class="form-control" id="p_quantidade" min="0" value="0">
+                            <small class="text-muted" style="font-size: 0.75rem;">Para a Loja Base Atual</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">NF de Compra</label>
+                        <input type="text" class="form-control" id="p_nf" placeholder="Opcional">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary fw-bold" onclick="salvarProduto()"><i class="fas fa-save"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let produtoEditandoId = null;
+
+    function abrirModalCriar() {
+        produtoEditandoId = null;
+        document.getElementById('tituloModalProduto').innerHTML = '<i class="fas fa-plus-circle"></i> Cadastrar Novo Produto';
+        document.getElementById('formProduto').reset();
+        
+        const modal = new bootstrap.Modal(document.getElementById('modalProduto'));
+        modal.show();
+    }
+
+    async function abrirModalEditar(id) {
+        produtoEditandoId = id;
+        document.getElementById('tituloModalProduto').innerHTML = '<i class="fas fa-edit"></i> Editar Produto';
+        
+        try {
+            const res = await fetch(`/api/produto/${id}`);
+            const data = await res.json();
+            
+            if (!res.ok) {
+                alert(data.erro);
+                return;
+            }
+            
+            document.getElementById('p_sku').value = data.sku || '';
+            document.getElementById('p_nome').value = data.nome || '';
+            document.getElementById('p_preco').value = data.preco || '';
+            document.getElementById('p_quantidade').value = data.quantidade || 0;
+            document.getElementById('p_nf').value = data.nf_compra || '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('modalProduto'));
+            modal.show();
+        } catch (e) {
+            alert("Falha ao carregar dados do produto.");
+        }
+    }
+
+    async function salvarProduto() {
+        const sku = document.getElementById('p_sku').value.trim();
+        const nome = document.getElementById('p_nome').value.trim();
+        const preco = document.getElementById('p_preco').value;
+        const quantidade = document.getElementById('p_quantidade').value;
+        const nf = document.getElementById('p_nf').value.trim();
+
+        if (!sku || !nome || !preco) {
+            alert('SKU, Nome e Preço são obrigatórios!');
+            return;
+        }
+
+        const payload = {
+            sku: sku,
+            nome: nome,
+            preco: parseFloat(preco),
+            quantidade: parseInt(quantidade),
+            nf_compra: nf
+        };
+
+        const method = produtoEditandoId ? 'PUT' : 'POST';
+        const url = produtoEditandoId ? `/api/produto/${produtoEditandoId}` : '/api/produto';
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                location.reload();
+            } else {
+                alert(data.erro || "Erro ao salvar produto.");
+            }
+        } catch (e) {
+            alert("Falha de comunicação com o servidor.");
+        }
+    }
+
+    async function apagarProduto(id) {
+        if (!confirm('Tem a certeza que deseja APAGAR este produto? Esta ação não pode ser desfeita.')) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/produto/${id}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                location.reload();
+            } else {
+                alert(data.erro || "Erro ao apagar produto.");
+            }
+        } catch (e) {
+            alert("Falha de comunicação com o servidor.");
+        }
+    }
+</script>
+{% endblock %}

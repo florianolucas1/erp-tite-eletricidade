@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block head %}
+<title>Gestão de Usuários - Tite Eletricidade</title>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-secondary"><i class="fas fa-users-cog text-primary me-2"></i> Gestão de Usuários</h2>
+        <button class="btn btn-primary" onclick="abrirModalCriar()">
+            <i class="fas fa-user-plus"></i> Novo Usuário
+        </button>
+    </div>
+
+    <!-- Lista de Usuários -->
+    <div class="card shadow-sm p-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Username (Login)</th>
+                        <th>Nome Completo</th>
+                        <th>Permissão</th>
+                        <th>Loja</th>
+                        <th>Contato (Tel / E-mail)</th>
+                        <th class="text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in usuarios %}
+                    <tr>
+                        <td class="fw-bold">{{ u.username }}</td>
+                        <td>{{ u.nome or '-' }}</td>
+                        <td>
+                            {% if u.role == 'Admin' %}
+                            <span class="badge bg-dark fs-6">Administrador</span>
+                            {% elif u.role == 'Gerente' %}
+                            <span class="badge bg-warning text-dark fs-6">Gerente</span>
+                            {% else %}
+                            <span class="badge bg-info text-dark fs-6">Vendedor</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ u.loja.nome if u.loja else '-' }}</td>
+                        <td>
+                            <div><i class="fas fa-phone small text-muted"></i> {{ u.telefone or '-' }}</div>
+                            <div><i class="fas fa-envelope small text-muted"></i> {{ u.email or '-' }}</div>
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-warning me-1" onclick="abrirModalEditar({{ u.id }})">
+                                <i class="fas fa-edit"></i> Editar
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="apagarUsuario({{ u.id }})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">Nenhum usuário cadastrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Usuário -->
+<div class="modal fade" id="modalUsuario" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="tituloModalUsuario"><i class="fas fa-user-plus"></i> Usuário</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formUsuario">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Nome Completo</label>
+                            <input type="text" class="form-control" id="u_nome">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Username (Login) *</label>
+                            <input type="text" class="form-control" id="u_username" required>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Senha <span id="lblSenhaObrigatorio">*</span></label>
+                            <input type="password" class="form-control" id="u_password">
+                            <small class="text-muted d-none" id="helpSenha">Deixe em branco para manter a senha atual.</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Perfil de Acesso *</label>
+                            <select class="form-select" id="u_role">
+                                <option value="Vendedor">Vendedor</option>
+                                <option value="Gerente">Gerente</option>
+                                <option value="Admin">Administrador (Master)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Loja *</label>
+                        <select class="form-select" id="u_loja">
+                            {% for l in lojas %}
+                            <option value="{{ l.id }}">{{ l.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Telefone</label>
+                            <input type="text" class="form-control" id="u_telefone">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">E-mail</label>
+                            <input type="email" class="form-control" id="u_email">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary fw-bold" onclick="salvarUsuario()"><i class="fas fa-save"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let usuarioEditandoId = null;
+
+    function abrirModalCriar() {
+        usuarioEditandoId = null;
+        document.getElementById('tituloModalUsuario').innerHTML = '<i class="fas fa-user-plus"></i> Cadastrar Novo Usuário';
+        document.getElementById('formUsuario').reset();
+        
+        document.getElementById('lblSenhaObrigatorio').innerText = '*';
+        document.getElementById('helpSenha').classList.add('d-none');
+        
+        const modal = new bootstrap.Modal(document.getElementById('modalUsuario'));
+        modal.show();
+    }
+
+    async function abrirModalEditar(id) {
+        usuarioEditandoId = id;
+        document.getElementById('tituloModalUsuario').innerHTML = '<i class="fas fa-user-edit"></i> Editar Usuário';
+        document.getElementById('formUsuario').reset();
+        
+        document.getElementById('lblSenhaObrigatorio').innerText = '(Opcional)';
+        document.getElementById('helpSenha').classList.remove('d-none');
+
+        try {
+            const res = await fetch(`/api/usuario/${id}`);
+            const data = await res.json();
+            
+            if (!res.ok) {
+                alert(data.erro);
+                return;
+            }
+            
+            document.getElementById('u_username').value = data.username || '';
+            document.getElementById('u_nome').value = data.nome || '';
+            document.getElementById('u_role').value = data.role || 'Vendedor';
+            document.getElementById('u_loja').value = data.loja_id || '';
+            document.getElementById('u_telefone').value = data.telefone || '';
+            document.getElementById('u_email').value = data.email || '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('modalUsuario'));
+            modal.show();
+        } catch (e) {
+            alert("Falha ao carregar dados do usuário.");
+        }
+    }
+
+    async function salvarUsuario() {
+        const username = document.getElementById('u_username').value.trim();
+        const nome = document.getElementById('u_nome').value.trim();
+        const password = document.getElementById('u_password').value;
+        const role = document.getElementById('u_role').value;
+        const loja_id = document.getElementById('u_loja').value;
+        const telefone = document.getElementById('u_telefone').value.trim();
+        const email = document.getElementById('u_email').value.trim();
+
+        if (!username || !role || !loja_id) {
+            alert('Username, Perfil e Loja são obrigatórios!');
+            return;
+        }
+
+        if (!usuarioEditandoId && !password) {
+            alert('A senha é obrigatória para novos usuários!');
+            return;
+        }
+
+        const payload = {
+            username: username,
+            nome: nome,
+            role: role,
+            loja_id: parseInt(loja_id),
+            telefone: telefone,
+            email: email
+        };
+
+        if (password) {
+            payload.password = password;
+        }
+
+        const method = usuarioEditandoId ? 'PUT' : 'POST';
+        const url = usuarioEditandoId ? `/api/usuario/${usuarioEditandoId}` : '/api/usuario';
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                location.reload();
+            } else {
+                alert(data.erro || "Erro ao salvar usuário.");
+            }
+        } catch (e) {
+            alert("Falha de comunicação com o servidor.");
+        }
+    }
+
+    async function apagarUsuario(id) {
+        if (!confirm('Tem a certeza que deseja APAGAR este usuário?')) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/usuario/${id}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                location.reload();
+            } else {
+                alert(data.erro || "Erro ao apagar usuário.");
+            }
+        } catch (e) {
+            alert("Falha de comunicação com o servidor.");
+        }
+    }
+</script>
+{% endblock %}

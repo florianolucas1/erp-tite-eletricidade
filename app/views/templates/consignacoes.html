@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}Nova Consignação - Tite Eletricidade{% endblock %}
+
+{% block head %}
+<style>
+    .hero-section {
+        background: linear-gradient(135deg, #003366 0%, #00509e 100%);
+        color: white;
+        padding: 40px 0;
+        margin-bottom: -50px;
+        padding-bottom: 80px;
+    }
+    .card-custom {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        background: white;
+    }
+    .search-bar {
+        border-radius: 30px;
+        padding: 15px 25px;
+        border: 2px solid #e2e8f0;
+        font-size: 1.1rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        transition: all 0.3s ease;
+    }
+    .search-bar:focus {
+        border-color: #ffc107;
+        box-shadow: 0 4px 15px rgba(255, 193, 7, 0.2);
+        outline: none;
+    }
+    .btn-consignar-main {
+        border-radius: 30px;
+        padding: 12px 30px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+    }
+    .table-custom tbody tr { transition: all 0.2s; }
+    .table-custom tbody tr:hover { background-color: #f1f5f9; transform: translateY(-1px); }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section text-center">
+    <div class="container">
+        <h2 class="fw-bold mb-3"><i class="fas fa-clipboard-list me-2"></i> Gestão de Consignações</h2>
+        <p class="lead opacity-75">Painel de controle para gerir reservas e faturar materiais em aberto.</p>
+    </div>
+</div>
+
+<!-- Container para Alertas SPA -->
+<div id="alertPlaceholder" class="position-fixed top-0 end-0 p-3 mt-5" style="z-index: 9999;"></div>
+
+<!-- Main Content -->
+<div class="container position-relative">
+    <!-- Tabela de Consignações em Aberto -->
+    <div class="card card-custom p-4 p-md-5 mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="fw-bold text-secondary mb-0"><i class="fas fa-list-alt text-primary me-2"></i> Consignações em Aberto</h4>
+            <a href="/vendedor" class="btn btn-warning rounded-pill px-4 shadow-sm fw-bold">
+                <i class="fas fa-plus-circle me-2"></i> Nova Consignação
+            </a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-custom align-middle">
+                <thead class="table-light text-muted">
+                    <tr>
+                        <th class="ps-3">DATA SAÍDA</th>
+                        <th>PRAZO</th>
+                        <th>CLIENTE</th>
+                        <th>PRODUTO</th>
+                        <th>QTD</th>
+                        <th>LOJA ORIGEM</th>
+                        <th class="text-end pe-3">AÇÕES (BAIXA)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in consignacoes_ativas %}
+                    <tr id="linha-consignacao-{{ c.id }}">
+                        <td class="ps-3 fw-bold text-secondary">{{ c.data_saida.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>
+                            {% if c.data_limite %}
+                                {% if c.data_limite < agora %}
+                                    <span class="badge bg-danger rounded-pill shadow-sm px-2 py-1"><i class="fas fa-exclamation-triangle"></i> Vencido ({{ c.data_limite.strftime('%d/%m') }})</span>
+                                {% else %}
+                                    <span class="badge bg-light text-success rounded-pill border px-2 py-1"><i class="fas fa-clock"></i> Até {{ c.data_limite.strftime('%d/%m') }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-secondary opacity-50 rounded-pill">S/ Prazo</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-semibold">{{ c.cliente.nome }}</td>
+                        <td><span class="badge bg-secondary">{{ c.produto.sku }}</span> {{ c.produto.nome }}</td>
+                        <td class="text-primary fw-bold">{{ c.quantidade }} un</td>
+                        <td>{{ c.loja.nome }}</td>
+                        <td class="text-end pe-3 text-nowrap">
+                            <button class="btn btn-sm btn-outline-danger rounded-pill px-3 me-1 btn-devolver" data-id="{{ c.id }}">
+                                <i class="fas fa-undo"></i> Devolver
+                            </button>
+                            <button class="btn btn-sm btn-success rounded-pill px-3 shadow-sm btn-faturar" data-id="{{ c.id }}">
+                                <i class="fas fa-check-circle"></i> Faturar
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">Não há consignações abertas no momento.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container (Notificações) -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="apiToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body fw-semibold text-white" id="toastMessage"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const toastElement = document.getElementById('apiToast');
+    const toastInstance = new bootstrap.Toast(toastElement);
+    const toastMessage = document.getElementById('toastMessage');
+
+    // Função auxiliar para exibir Toast
+    function mostrarToast(mensagem, corClasse) {
+        toastElement.className = `toast align-items-center text-white border-0 ${corClasse}`;
+        toastMessage.innerText = mensagem;
+        toastInstance.show();
+    }
+
+    // 4. Lógica de Baixa (Devolver e Faturar)
+    const botoesDevolver = document.querySelectorAll('.btn-devolver');
+    const botoesFaturar = document.querySelectorAll('.btn-faturar');
+
+    async function processarBaixa(idConsignacao, endpoint, confirmMsg) {
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id_consignacao: parseInt(idConsignacao) })
+            });
+            const data = await response.json();
+            
+            if (response.ok) {
+                mostrarToast('✅ ' + data.mensagem, 'bg-success');
+                // Remove a linha da tabela para refletir instantaneamente
+                document.getElementById('linha-consignacao-' + idConsignacao).remove();
+            } else {
+                mostrarToast('❌ ' + data.erro, 'bg-danger');
+            }
+        } catch (error) {
+            mostrarToast('❌ Erro de conexão com o servidor.', 'bg-danger');
+        }
+    }
+
+    botoesDevolver.forEach(btn => {
+        btn.addEventListener('click', function() {
+            processarBaixa(this.getAttribute('data-id'), '/api/consignacao/devolver', 'Tem certeza que deseja DEVOLVER este material ao estoque? A quantidade física não será alterada.');
+        });
+    });
+
+    botoesFaturar.forEach(btn => {
+        btn.addEventListener('click', function() {
+            processarBaixa(this.getAttribute('data-id'), '/api/consignacao/efetivar-venda', 'Tem certeza que deseja FATURAR este material? Isto dará baixa definitiva no estoque físico.');
+        });
+    });
+
+
+
+</script>
+{% endblock %}

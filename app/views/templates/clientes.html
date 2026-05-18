@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+
+{% block head %}
+<title>Gestão de Clientes - Tite Eletricidade</title>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-secondary"><i class="fas fa-users text-primary me-2"></i> Gestão de Clientes</h2>
+        <button class="btn btn-primary" onclick="abrirModalCriar()">
+            <i class="fas fa-user-plus"></i> Novo Cliente
+        </button>
+    </div>
+
+    <!-- Lista de Clientes -->
+    <div class="card shadow-sm p-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nome / Nome Fantasia</th>
+                        <th>Documento</th>
+                        <th>Telefone</th>
+                        <th>E-mail</th>
+                        <th class="text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in clientes %}
+                    <tr>
+                        <td class="fw-bold">
+                            {% if c.inadimplente %}
+                            <i class="fas fa-exclamation-triangle text-danger me-1" title="Inadimplente"></i>
+                            {% endif %}
+                            {{ c.nome }}
+                        </td>
+                        <td>{{ c.cpf_cnpj or 'Não informado' }}</td>
+                        <td>{{ c.telefone or 'Não informado' }}</td>
+                        <td>{{ c.email or 'Não informado' }}</td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-warning me-1" onclick="abrirModalEditar({{ c.id }})">
+                                <i class="fas fa-edit"></i> Editar
+                            </button>
+                            <button class="btn btn-sm btn-outline-info" onclick="verHistorico({{ c.id }})">
+                                <i class="fas fa-history"></i> Histórico
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">Nenhum cliente cadastrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Novo Cliente -->
+<div class="modal fade" id="modalNovoCliente" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="tituloModalCliente"><i class="fas fa-user-plus"></i> Cadastrar Novo Cliente</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNovoCliente">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tipo de Cliente</label>
+                        <select class="form-select" id="c_tipo" onchange="toggleCamposPessoa()">
+                            <option value="PF">Pessoa Física (CPF)</option>
+                            <option value="PJ">Pessoa Jurídica (CNPJ)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" id="lbl_nome">Nome Completo</label>
+                            <input type="text" class="form-control" id="c_nome" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" id="lbl_doc">CPF</label>
+                            <input type="text" class="form-control" id="c_doc">
+                        </div>
+                    </div>
+                    
+                    <div class="row" id="linhaPJ" style="display: none;">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label">Inscrição Estadual</label>
+                            <input type="text" class="form-control" id="c_ie">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Telefone</label>
+                            <input type="text" class="form-control" id="c_telefone">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">E-mail</label>
+                            <input type="email" class="form-control" id="c_email">
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h6 class="text-secondary mb-3">Endereço</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">CEP</label>
+                            <input type="text" class="form-control" id="c_cep">
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label">Rua / Av.</label>
+                            <input type="text" class="form-control" id="c_rua">
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label">Bairro</label>
+                            <input type="text" class="form-control" id="c_bairro">
+                        </div>
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label">Cidade</label>
+                            <input type="text" class="form-control" id="c_cidade">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label">Estado</label>
+                            <input type="text" class="form-control" id="c_estado" maxlength="2" placeholder="UF">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="salvarCliente()">Salvar Cliente</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Histórico -->
+<div class="modal fade" id="modalHistorico" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-dark">
+                <h5 class="modal-title"><i class="fas fa-history"></i> Ficha do Cliente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h4 class="fw-bold text-primary" id="h_nome">--</h4>
+                        <p class="mb-1 text-muted"><i class="fas fa-id-card"></i> <span id="h_doc"></span></p>
+                        <p class="mb-1 text-muted"><i class="fas fa-phone"></i> <span id="h_tel"></span></p>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <span id="h_status" class="badge bg-success fs-6 mt-2">Cliente Regular</span>
+                    </div>
+                </div>
+                
+                <ul class="nav nav-tabs" id="myTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#compras" type="button" role="tab">Histórico de Compras</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#consignacoes" type="button" role="tab">Consignações em Aberto</button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content border border-top-0 p-3" id="myTabContent">
+                    <!-- Tab Compras -->
+                    <div class="tab-pane fade show active" id="compras" role="tabpanel">
+                        <div class="table-responsive" style="max-height: 300px;">
+                            <table class="table table-sm table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Data/Hora</th>
+                                        <th>Loja</th>
+                                        <th>Produto</th>
+                                        <th class="text-center">Qtd</th>
+                                        <th class="text-end">Valor (R$)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaHistoricoCompras"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Tab Consignacoes -->
+                    <div class="tab-pane fade" id="consignacoes" role="tabpanel">
+                        <div class="table-responsive" style="max-height: 300px;">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Produto</th>
+                                        <th class="text-center">Qtd</th>
+                                        <th>Data Saída</th>
+                                        <th>Data Limite</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaHistoricoConsig"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let clienteEditandoId = null;
+
+    function abrirModalCriar() {
+        clienteEditandoId = null;
+        document.getElementById('tituloModalCliente').innerHTML = '<i class="fas fa-user-plus"></i> Cadastrar Novo Cliente';
+        document.getElementById('formNovoCliente').reset();
+        toggleCamposPessoa();
+        const modal = new bootstrap.Modal(document.getElementById('modalNovoCliente'));
+        modal.show();
+    }
+
+    async function abrirModalEditar(id) {
+        clienteEditandoId = id;
+        document.getElementById('tituloModalCliente').innerHTML = '<i class="fas fa-edit"></i> Editar Cliente';
+        
+        try {
+            const res = await fetch(`/api/cliente/${id}`);
+            const data = await res.json();
+            
+            if (!res.ok) {
+                alert(data.erro);
+                return;
+            }
+            
+            document.getElementById('c_tipo').value = data.tipo_pessoa || 'PF';
+            toggleCamposPessoa();
+            
+            document.getElementById('c_nome').value = data.nome || '';
+            document.getElementById('c_doc').value = data.cpf_cnpj || '';
+            document.getElementById('c_ie').value = data.inscricao_estadual || '';
+            document.getElementById('c_telefone').value = data.telefone || '';
+            document.getElementById('c_email').value = data.email || '';
+            document.getElementById('c_cep').value = data.cep || '';
+            document.getElementById('c_rua').value = data.rua || '';
+            document.getElementById('c_bairro').value = data.bairro || '';
+            document.getElementById('c_cidade').value = data.cidade || '';
+            document.getElementById('c_estado').value = data.estado || '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('modalNovoCliente'));
+            modal.show();
+        } catch (e) {
+            alert("Falha ao carregar dados do cliente.");
+        }
+    }
+
+    function toggleCamposPessoa() {
+        const tipo = document.getElementById('c_tipo').value;
+        const linhaPJ = document.getElementById('linhaPJ');
+        const lblNome = document.getElementById('lbl_nome');
+        const lblDoc = document.getElementById('lbl_doc');
+        
+        if (tipo === 'PJ') {
+            linhaPJ.style.display = 'flex';
+            lblNome.innerText = 'Nome Fantasia / Razão Social';
+            lblDoc.innerText = 'CNPJ';
+        } else {
+            linhaPJ.style.display = 'none';
+            lblNome.innerText = 'Nome Completo';
+            lblDoc.innerText = 'CPF';
+        }
+    }
+
+    async function salvarCliente() {
+        const payload = {
+            tipo_pessoa: document.getElementById('c_tipo').value,
+            nome: document.getElementById('c_nome').value,
+            cpf_cnpj: document.getElementById('c_doc').value,
+            inscricao_estadual: document.getElementById('c_ie').value,
+            telefone: document.getElementById('c_telefone').value,
+            email: document.getElementById('c_email').value,
+            cep: document.getElementById('c_cep').value,
+            rua: document.getElementById('c_rua').value,
+            bairro: document.getElementById('c_bairro').value,
+            cidade: document.getElementById('c_cidade').value,
+            estado: document.getElementById('c_estado').value
+        };
+
+        if (!payload.nome) {
+            alert('O nome é obrigatório!');
+            return;
+        }
+
+        const method = clienteEditandoId ? 'PUT' : 'POST';
+        const url = clienteEditandoId ? `/api/cliente/${clienteEditandoId}` : '/api/cliente';
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                location.reload();
+            } else {
+                alert(data.erro || "Erro ao salvar cliente.");
+            }
+        } catch (e) {
+            alert("Falha de comunicação com o servidor.");
+        }
+    }
+
+    async function verHistorico(id) {
+        try {
+            const res = await fetch(`/api/cliente/${id}/historico`);
+            const data = await res.json();
+            
+            if (!res.ok) {
+                alert(data.erro);
+                return;
+            }
+            
+            // Header do modal
+            document.getElementById('h_nome').innerText = data.cliente.nome;
+            document.getElementById('h_doc').innerText = data.cliente.documento || 'Sem doc';
+            document.getElementById('h_tel').innerText = data.cliente.telefone || 'Sem tel';
+            
+            const badge = document.getElementById('h_status');
+            if (data.cliente.inadimplente || data.consignacoes_abertas.some(c => c.atrasado)) {
+                badge.className = 'badge bg-danger fs-6 mt-2';
+                badge.innerText = 'Inadimplente / Com Atrasos';
+            } else {
+                badge.className = 'badge bg-success fs-6 mt-2';
+                badge.innerText = 'Cliente Regular';
+            }
+            
+            // Tabela Compras
+            const tbCompras = document.getElementById('tabelaHistoricoCompras');
+            tbCompras.innerHTML = '';
+            if (data.historico_compras.length === 0) {
+                tbCompras.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhuma compra registrada.</td></tr>';
+            } else {
+                data.historico_compras.forEach(c => {
+                    tbCompras.innerHTML += `
+                        <tr>
+                            <td>${c.data}</td>
+                            <td>${c.loja}</td>
+                            <td>${c.produto}</td>
+                            <td class="text-center">${c.quantidade}</td>
+                            <td class="text-end">R$ ${c.valor_total.toFixed(2)}</td>
+                        </tr>
+                    `;
+                });
+            }
+            
+            // Tabela Consignacoes
+            const tbConsig = document.getElementById('tabelaHistoricoConsig');
+            tbConsig.innerHTML = '';
+            if (data.consignacoes_abertas.length === 0) {
+                tbConsig.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhuma consignação em aberto.</td></tr>';
+            } else {
+                data.consignacoes_abertas.forEach(c => {
+                    const st = c.atrasado ? '<span class="text-danger fw-bold"><i class="fas fa-exclamation-circle"></i> Atrasado</span>' : '<span class="text-success">No Prazo</span>';
+                    tbConsig.innerHTML += `
+                        <tr class="${c.atrasado ? 'table-danger' : ''}">
+                            <td>#${c.id}</td>
+                            <td>${c.produto}</td>
+                            <td class="text-center">${c.quantidade}</td>
+                            <td>${c.data_saida}</td>
+                            <td class="fw-bold">${c.data_limite}</td>
+                            <td>${st}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById('modalHistorico'));
+            modal.show();
+
+        } catch (e) {
+            alert("Falha ao carregar histórico.");
+        }
+    }
+</script>
+{% endblock %}

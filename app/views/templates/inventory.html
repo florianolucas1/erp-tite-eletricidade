@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Inventário Base - Tite Eletricidade{% endblock %}
+
+{% block head %}
+<style>
+    .card-inventory {
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        margin-top: 30px;
+    }
+    .badge-stock { font-size: 0.9em; padding: 6px 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="card-inventory">
+        <h3 class="mb-4 text-secondary">📦 Painel de Inventário Consolidado</h3>
+        
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Cód. Produto</th>
+                        <th>Descrição</th>
+                        <th>Preço (R$)</th>
+                        <!-- Colunas dinâmicas para as Lojas -->
+                        {% for loja in lojas %}
+                        <th class="text-center">Estoque {{ loja.nome }}</th>
+                        {% endfor %}
+                        <th class="text-center text-primary bg-light">Estoque Total (Rede)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in inventario %}
+                    <tr>
+                        <td class="fw-bold text-muted">{{ item.sku }}</td>
+                        <td>{{ item.nome }}</td>
+                        <td>{{ "%.2f"|format(item.preco) }}</td>
+                        
+                        <!-- Estoque por loja -->
+                        {% for loja in lojas %}
+                        <td class="text-center">
+                            {% set qtd = item.estoque_lojas[loja.nome] %}
+                            <span class="badge rounded-pill badge-stock {% if qtd > 5 %}bg-success{% elif qtd > 0 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                {{ qtd }} un
+                            </span>
+                        </td>
+                        {% endfor %}
+                        
+                        <!-- Estoque Total -->
+                        <td class="text-center fw-bold fs-5 text-primary bg-light">
+                            {{ item.estoque_total }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            Nenhum produto cadastrado na base de dados.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3 text-muted small">
+            * As informações de estoque são atualizadas em tempo real entre as unidades.
+        </div>
+    </div>
+</div>
+{% endblock %}

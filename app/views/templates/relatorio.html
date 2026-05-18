@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block head %}
+<title>Relatório Gerencial - Tite Eletricidade</title>
+<!-- Adicionando Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-secondary"><i class="fas fa-chart-line text-primary me-2"></i> Relatório Gerencial de Vendas</h2>
+        <div class="d-flex gap-2">
+            <input type="date" id="dataInicio" class="form-control" placeholder="Data Início">
+            <input type="date" id="dataFim" class="form-control" placeholder="Data Fim">
+            <button class="btn btn-primary" onclick="carregarRelatorio()"><i class="fas fa-filter"></i> Filtrar</button>
+            <button class="btn btn-success" onclick="exportarCSV()"><i class="fas fa-file-csv"></i> Exportar CSV</button>
+        </div>
+    </div>
+
+    <!-- Cards Resumo -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white shadow-sm h-100 p-4 d-flex justify-content-center align-items-center text-center">
+                <h5 class="opacity-75"><i class="fas fa-money-bill-wave"></i> Faturamento Total</h5>
+                <h2 class="fw-bold mb-0" id="cardFaturamento">R$ 0,00</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white shadow-sm h-100 p-4 d-flex justify-content-center align-items-center text-center">
+                <h5 class="opacity-75">
+                    <i class="fas fa-receipt"></i> Ticket Médio
+                    <i class="fas fa-question-circle ms-1 text-light" style="font-size: 0.8rem; cursor: help;" data-bs-toggle="tooltip" data-bs-placement="top" title="O Ticket Médio é o valor médio gasto pelos clientes. É calculado dividindo o Faturamento Total pelo Número de Vendas no período."></i>
+                </h5>
+                <h2 class="fw-bold mb-0" id="cardTicket">R$ 0,00</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-warning text-dark shadow-sm h-100 p-4 d-flex justify-content-center align-items-center text-center">
+                <h5 class="opacity-75"><i class="fas fa-shopping-cart"></i> Total de Operações</h5>
+                <h2 class="fw-bold mb-0" id="cardOperacoes">0</h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card shadow-sm p-3 h-100">
+                <h6 class="text-secondary text-center mb-3"><i class="fas fa-calendar-alt text-primary"></i> Evolução de Vendas Diárias</h6>
+                <div style="height: 300px;">
+                    <canvas id="evolucaoChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 h-100">
+                <h6 class="text-secondary text-center mb-3">
+                    <i class="fas fa-star text-warning"></i> Curva ABC (Receita)
+                    <i class="fas fa-question-circle text-muted ms-1" style="font-size: 0.8rem; cursor: help;" data-bs-toggle="tooltip" data-bs-placement="top" title="A Curva ABC classifica os seus produtos pela receita que geram: Classe A (~80% do faturamento), Classe B (~15%) e Classe C (~5%). Foque a sua atenção e stock nos itens de Classe A!"></i>
+                </h6>
+                <div style="height: 300px;">
+                    <canvas id="abcChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela Geral Curva ABC -->
+    <div class="card shadow-sm p-4">
+        <h5 class="text-secondary mb-3"><i class="fas fa-list text-primary"></i> Tabela Geral - Curva ABC</h5>
+        <p class="text-muted small">Todos os produtos vendidos no período, ordenados por volume de receita gerada e categorizados pelas Classes A, B e C.</p>
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-hover table-bordered align-middle">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th class="text-center">Classe</th>
+                        <th>SKU</th>
+                        <th>Produto</th>
+                        <th class="text-center">Qtd Vendida</th>
+                        <th class="text-end">Receita Gerada (R$)</th>
+                    </tr>
+                </thead>
+                <tbody id="tabelaGeralABC">
+                    <!-- Preenchido via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let evolucaoChartInstance = null;
+    let abcChartInstance = null;
+    let dadosCompletosABC = [];
+
+    // Formatação de Moeda BRL
+    const formatarMoeda = (valor) => {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+    };
+
+    async function carregarRelatorio() {
+        const dInicio = document.getElementById('dataInicio').value;
+        const dFim = document.getElementById('dataFim').value;
+
+        let url = '/api/relatorio/vendas?';
+        if (dInicio) url += `data_inicio=${dInicio}&`;
+        if (dFim) url += `data_fim=${dFim}`;
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                const errorData = await response.json();
+                alert(errorData.erro || "Falha ao carregar relatório");
+                return;
+            }
+            const data = await response.json();
+
+            // 1. Atualizar Cards
+            document.getElementById('cardFaturamento').innerText = formatarMoeda(data.resumo.faturamento);
+            document.getElementById('cardTicket').innerText = formatarMoeda(data.resumo.ticket_medio);
+            document.getElementById('cardOperacoes').innerText = data.resumo.operacoes;
+
+            // 2. Gráfico de Linha (Evolução Diária)
+            atualizarGraficoEvolucao(data.evolucao_diaria);
+
+            // 3. Gráfico de Pizza (Curva ABC)
+            atualizarGraficoABC(data.curva_abc_grafico);
+
+            // 4. Preencher Tabela Geral
+            preencherTabelaABC(data.lista_completa_abc);
+
+            // 5. Guardar dados para Exportação CSV
+            dadosCompletosABC = data.lista_completa_abc;
+
+        } catch (e) {
+            console.error(e);
+            alert("Erro de comunicação com o servidor.");
+        }
+    }
+
+    function atualizarGraficoEvolucao(dados) {
+        const ctx = document.getElementById('evolucaoChart').getContext('2d');
+        if (evolucaoChartInstance) evolucaoChartInstance.destroy();
+
+        evolucaoChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dados.labels.length > 0 ? dados.labels : ['Sem dados'],
+                datasets: [{
+                    label: 'Faturamento (R$)',
+                    data: dados.valores.length > 0 ? dados.valores : [0],
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13, 110, 253, 0.2)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    function atualizarGraficoABC(dados) {
+        const ctx = document.getElementById('abcChart').getContext('2d');
+        if (abcChartInstance) abcChartInstance.destroy();
+
+        const totalABC = dados.QtdA + dados.QtdB + dados.QtdC;
+        const valores = totalABC === 0 ? [1] : [dados.A, dados.B, dados.C];
+        const cores = totalABC === 0 ? ['#e9ecef'] : ['#198754', '#0d6efd', '#6c757d'];
+        const labels = totalABC === 0 ? ['Sem Dados'] : ['Classe A (80%)', 'Classe B (15%)', 'Classe C (5%)'];
+
+        abcChartInstance = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: valores,
+                    backgroundColor: cores,
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                if (totalABC === 0) return ' Vendas Insuficientes';
+                                return ` ${formatarMoeda(context.raw)}`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function preencherTabelaABC(produtos) {
+        const tbody = document.getElementById('tabelaGeralABC');
+        tbody.innerHTML = '';
+        if (produtos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhum produto vendido no período.</td></tr>';
+            return;
+        }
+
+        produtos.forEach(p => {
+            const tr = document.createElement('tr');
+            
+            // Badge customizado por classe
+            let badgeClass = 'bg-secondary';
+            if (p.classe === 'A') badgeClass = 'bg-success';
+            if (p.classe === 'B') badgeClass = 'bg-primary';
+            
+            tr.innerHTML = `
+                <td class="text-center"><span class="badge ${badgeClass} fs-6">${p.classe}</span></td>
+                <td><span class="badge bg-light text-dark border">${p.sku}</span></td>
+                <td class="fw-bold">${p.nome}</td>
+                <td class="text-center">${p.quantidade}</td>
+                <td class="text-end fw-bold text-success">${formatarMoeda(p.receita)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function exportarCSV() {
+        if (dadosCompletosABC.length === 0) {
+            alert("Nenhum dado para exportar.");
+            return;
+        }
+
+        let csvContent = "SKU,Produto,Quantidade Vendida,Receita (R$),Classe ABC\n";
+        dadosCompletosABC.forEach(p => {
+            // Escapar vírgulas no nome do produto
+            const nomeStr = `"${p.nome.replace(/"/g, '""')}"`;
+            csvContent += `${p.sku},${nomeStr},${p.quantidade},${p.receita.toFixed(2)},${p.classe}\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Curva_ABC_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // Carregar ao iniciar
+    document.addEventListener("DOMContentLoaded", function() {
+        carregarRelatorio();
+        
+        // Inicializar tooltips nativos do Bootstrap 5
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,603 @@
+{% extends "base.html" %}
+
+{% block title %}Portal do Vendedor (PDV) - Tite Eletricidade{% endblock %}
+
+{% block head %}
+<style>
+    .search-container {
+        background: linear-gradient(135deg, #003366 0%, #00509e 100%);
+        padding: 30px 0;
+        border-radius: 16px;
+        margin-bottom: 20px;
+    }
+    .search-input {
+        border-radius: 30px;
+        padding: 12px 25px;
+        border: none;
+        font-size: 1.1rem;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    .search-input:focus {
+        box-shadow: 0 5px 20px rgba(255, 193, 7, 0.4);
+        outline: none;
+    }
+    .product-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .product-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .cart-container {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        height: calc(100vh - 120px);
+        position: sticky;
+        top: 20px;
+        display: flex;
+        flex-direction: column;
+    }
+    .cart-items {
+        flex-grow: 1;
+        overflow-y: auto;
+        padding: 15px;
+    }
+    .cart-item {
+        border-bottom: 1px solid #f1f5f9;
+        padding: 10px 0;
+    }
+    .cart-footer {
+        background: #f8f9fc;
+        padding: 20px;
+        border-radius: 0 0 16px 16px;
+        border-top: 1px solid #e2e8f0;
+    }
+    /* Scrollbar minimalista */
+    .cart-items::-webkit-scrollbar { width: 6px; }
+    .cart-items::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 px-4">
+    <div class="row">
+        
+        <!-- Lado Esquerdo: Catálogo de Produtos -->
+        <div class="col-lg-8">
+            <!-- Área de Busca -->
+            <div class="search-container px-4">
+                <div class="position-relative">
+                    <i class="fas fa-search position-absolute text-muted" style="top: 15px; left: 20px; font-size: 1.2rem; z-index: 10;"></i>
+                    <input type="text" id="inputBusca" class="form-control search-input ps-5" placeholder="Digite SKU ou Nome para buscar produtos...">
+                </div>
+            </div>
+
+            <!-- Grid de Produtos -->
+            <div class="row" id="gridProdutos" style="max-height: calc(100vh - 240px); overflow-y: auto; overflow-x: hidden;">
+                {% for item in inventario %}
+                <div class="col-md-6 col-xl-4 mb-3 card-produto-wrapper" data-busca="{{ item.sku|lower }} {{ item.nome|lower }}">
+                    <div class="card h-100 product-card p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-secondary">{{ item.sku }}</span>
+                            <h6 class="text-success fw-bold mb-0">R$ {{ "%.2f"|format(item.preco) }}</h6>
+                        </div>
+                        <h6 class="card-title fw-bold text-dark mb-3" style="font-size: 0.95rem;">{{ item.nome }}</h6>
+                        
+                        <div class="d-flex justify-content-between text-muted small mb-3 mt-auto">
+                            {% for loja in lojas %}
+                            <div>
+                                <i class="fas fa-store"></i> {{ loja.nome }}: 
+                                <span class="fw-bold {% if item.estoques[loja.id|string] > 0 %}text-primary{% else %}text-danger{% endif %}">
+                                    {{ item.estoques[loja.id|string] }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <button class="btn btn-outline-primary btn-sm w-100 fw-bold btn-add-carrinho" 
+                                data-id="{{ item.id }}" 
+                                data-sku="{{ item.sku }}"
+                                data-nome="{{ item.nome }}"
+                                data-preco="{{ item.preco }}"
+                                data-estoques='{{ item.estoques | tojson }}'>
+                            <i class="fas fa-plus"></i> Adicionar
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-12 text-center text-muted py-5">Nenhum produto em inventário.</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Lado Direito: Carrinho de Compras (POS Lateral) -->
+        <div class="col-lg-4">
+            <div class="cart-container">
+                
+                <!-- Cabeçalho do Carrinho (Configurações Gerais) -->
+                <div class="p-3 border-bottom">
+                    <h5 class="fw-bold text-primary mb-3"><i class="fas fa-shopping-cart"></i> Carrinho de Operação</h5>
+                    
+                    <div class="mb-2">
+                        <label class="form-label text-muted small fw-bold mb-1">LOJA DE RETIRADA (ESTOQUE ATUAL)</label>
+                        <select class="form-select form-select-sm border-secondary shadow-none bg-light" id="lojaSelect">
+                            {% for loja in lojas %}
+                            <option value="{{ loja.id }}">{{ loja.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label text-muted small fw-bold mb-1">CLIENTE / ELETRICISTA</label>
+                        <select class="form-select form-select-sm border-secondary shadow-none mb-2" id="clienteSelect">
+                            <option value="0" selected>Consumidor Padrão (Não cadastrado)</option>
+                            {% for c in clientes %}
+                            <option value="{{ c.id }}">{{ c.nome }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted" style="font-size: 0.75rem;"><i class="fas fa-info-circle"></i> Cadastros de clientes devem ser feitos na aba Clientes.</small>
+                    </div>
+
+                    <div class="mb-2 d-none" id="boxPrazoConsignacao">
+                        <label class="form-label text-muted small fw-bold mb-1">PRAZO PARA CONSIGNAÇÃO</label>
+                        <div class="input-group input-group-sm shadow-none">
+                            <input type="number" class="form-control border-secondary text-center fw-bold text-primary" id="prazoDias" value="7" min="1">
+                            <span class="input-group-text bg-light text-muted">Dias</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lista de Itens do Carrinho -->
+                <div class="cart-items" id="listaCarrinho">
+                    <!-- Preenchido via JavaScript -->
+                    <div class="text-center text-muted mt-5" id="carrinhoVazioMsg">
+                        <i class="fas fa-cart-arrow-down fs-1 mb-3 opacity-25"></i>
+                        <p>O carrinho está vazio.<br>Adicione produtos pelo catálogo.</p>
+                    </div>
+                </div>
+
+                <!-- Rodapé do Carrinho (Total e Botões) -->
+                <div class="cart-footer">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="text-muted fw-bold">TOTAL:</span>
+                        <h3 class="text-success fw-bold mb-0" id="totalCarrinho">R$ 0.00</h3>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <!-- Botão Venda Direta -->
+                        <button class="btn btn-success fw-bold shadow-sm" id="btnVendaDireta">
+                            <i class="fas fa-cash-register me-1"></i> Finalizar Venda Direta
+                        </button>
+                        <!-- Botão Consignação -->
+                        <button class="btn btn-warning fw-bold shadow-sm d-none" id="btnConsignar">
+                            <i class="fas fa-clipboard-list me-1"></i> Gerar Consignação
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Overlay Loading -->
+                <div id="cartLoading" class="position-absolute w-100 h-100 bg-white bg-opacity-75 d-none align-items-center justify-content-center" style="z-index: 10; border-radius: 16px;">
+                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Checkout -->
+<div class="modal fade" id="modalConfirmacaoCheckout" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="tituloConfirmacaoCheckout"><i class="fas fa-shopping-cart"></i> Confirmar Operação</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <h6 class="fw-bold text-secondary">Resumo dos Itens</h6>
+                    <div class="table-responsive" style="max-height: 250px;">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Produto</th>
+                                    <th class="text-center">Qtd</th>
+                                    <th class="text-end">Subtotal (R$)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="listaItensConfirmacao">
+                                <!-- Preenchido via JS -->
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th colspan="2" class="text-end">TOTAL:</th>
+                                    <th class="text-end text-success fw-bold" id="totalConfirmacao">R$ 0,00</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="mb-3 d-none" id="opcoesFiscais">
+                    <h6 class="fw-bold text-secondary">Opções Fiscais</h6>
+                    <div class="d-flex gap-4 p-2 border rounded bg-light">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="tipoDocumentoFiscal" id="docSemNFE" value="none" checked>
+                            <label class="form-check-label" for="docSemNFE">Apenas Comprovante Interno (PDF)</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="tipoDocumentoFiscal" id="docNFE" value="nfe">
+                            <label class="form-check-label text-primary fw-bold" for="docNFE">Emitir Nota Fiscal (NFe)</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="tipoDocumentoFiscal" id="docNFCe" value="nfce">
+                            <label class="form-check-label text-success fw-bold" for="docNFCe">Emitir Cupom Fiscal (NFC-e)</label>
+                        </div>
+                    </div>
+                    <small class="text-muted mt-1 d-block"><i class="fas fa-info-circle"></i> O comprovante em PDF será gerado independentemente da opção escolhida.</small>
+                </div>
+                
+                <input type="hidden" id="operacaoPendenteTipo">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary fw-bold" id="btnConfirmarCheckoutFinal"><i class="fas fa-check"></i> Confirmar e Concluir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container (Notificações) -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1060;">
+    <div id="apiToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body fw-semibold" id="toastMessage"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Modal de Sucesso PDF -->
+<div class="modal fade" id="modalSucesso" tabindex="-1" aria-labelledby="modalSucessoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content text-center" style="border-radius: 16px;">
+            <div class="modal-body p-5">
+                <div class="mb-4">
+                    <i class="fas fa-check-circle text-success" style="font-size: 5rem;"></i>
+                </div>
+                <h4 class="fw-bold mb-3" id="modalSucessoTitulo">Operação Concluída!</h4>
+                <p class="text-muted mb-4" id="modalSucessoMensagem">A operação foi processada com sucesso no sistema.</p>
+                
+                <div id="modalSucessoPdfContainer" class="d-none mb-4">
+                    <a href="#" id="modalSucessoPdfLink" target="_blank" class="btn btn-primary w-100 fw-bold rounded-pill shadow-sm py-2">
+                        <i class="fas fa-print me-2"></i> Abrir Termo de Consignação (PDF)
+                    </a>
+                </div>
+                
+                <button type="button" class="btn btn-light w-100 fw-bold rounded-pill py-2 text-muted" data-bs-dismiss="modal" onclick="window.location.reload()">
+                    Fechar e Iniciar Nova Operação
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // ESTADO DO CARRINHO
+    let carrinho = []; // Array de objetos { id, sku, nome, preco, quantidade, estoques_dict }
+
+    // ELEMENTOS DA UI
+    const inputBusca = document.getElementById('inputBusca');
+    const cards = document.querySelectorAll('.card-produto-wrapper');
+    const listaCarrinho = document.getElementById('listaCarrinho');
+    const carrinhoVazioMsg = document.getElementById('carrinhoVazioMsg');
+    const labelTotal = document.getElementById('totalCarrinho');
+    const lojaSelect = document.getElementById('lojaSelect');
+    
+    // 1. Busca nos Cards
+    inputBusca.addEventListener('input', function(e) {
+        const termo = e.target.value.toLowerCase();
+        cards.forEach(card => {
+            const textoBusca = card.getAttribute('data-busca');
+            if (textoBusca.includes(termo)) {
+                card.style.display = 'block';
+                card.classList.add('card-visivel');
+            } else {
+                card.style.display = 'none';
+                card.classList.remove('card-visivel');
+            }
+        });
+    });
+
+    // 1.1 Suporte a Leitores de Código de Barras (Enter)
+    inputBusca.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            // Conta os cards visíveis
+            const cardsVisiveis = document.querySelectorAll('.card-visivel');
+            if (cardsVisiveis.length === 1) {
+                // Se só houver 1 resultado (match perfeito do código de barras), adiciona ao carrinho automaticamente!
+                const btnAdd = cardsVisiveis[0].querySelector('.btn-add-carrinho');
+                if (btnAdd) btnAdd.click();
+            }
+        }
+    });
+
+    // 2. Adicionar ao Carrinho
+    const botoesAdicionar = document.querySelectorAll('.btn-add-carrinho');
+    botoesAdicionar.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const sku = this.getAttribute('data-sku');
+            const nome = this.getAttribute('data-nome');
+            const preco = parseFloat(this.getAttribute('data-preco'));
+            const estoques = JSON.parse(this.getAttribute('data-estoques'));
+
+            // Verifica se já está no carrinho
+            const itemExistente = carrinho.find(item => item.id === id);
+            if (itemExistente) {
+                itemExistente.quantidade += 1;
+            } else {
+                carrinho.push({ id, sku, nome, preco, quantidade: 1, estoques });
+            }
+            
+            atualizarUI();
+            
+            // UX: Animação ligeira no botão
+            const icone = this.querySelector('i');
+            icone.className = 'fas fa-check text-success';
+            setTimeout(() => icone.className = 'fas fa-plus', 1000);
+
+            // Suporte a Barcode Scanner: Limpa o input, reseta a busca e devolve o foco
+            inputBusca.value = '';
+            inputBusca.dispatchEvent(new Event('input')); // Dispara o reset visual dos cards
+            inputBusca.focus();
+        });
+    });
+
+    // 3. Atualizar a Interface do Carrinho
+    function atualizarUI() {
+        const idLojaAtual = lojaSelect.value;
+        
+        if (carrinho.length === 0) {
+            listaCarrinho.innerHTML = '';
+            listaCarrinho.appendChild(carrinhoVazioMsg);
+            carrinhoVazioMsg.classList.remove('d-none');
+            labelTotal.innerText = 'R$ 0.00';
+            return;
+        }
+
+        carrinhoVazioMsg.classList.add('d-none');
+        listaCarrinho.innerHTML = '';
+        let somaTotal = 0;
+
+        carrinho.forEach((item, index) => {
+            somaTotal += (item.preco * item.quantidade);
+            
+            // Lógica do Aviso de Estoque na Outra Loja
+            const qtdNaLojaAtual = parseInt(item.estoques[idLojaAtual]) || 0;
+            
+            // Descobre qual é a "outra loja" verificando as keys do dicionário estoques
+            let qtdNoutraLoja = 0;
+            for (let [key, val] of Object.entries(item.estoques)) {
+                if (key !== idLojaAtual) {
+                    qtdNoutraLoja += parseInt(val);
+                }
+            }
+
+            let alertaEstoqueHTML = '';
+            if (qtdNaLojaAtual < item.quantidade) {
+                if (qtdNoutraLoja >= item.quantidade) {
+                    alertaEstoqueHTML = `<div class="text-warning small fw-bold mt-1" style="font-size: 0.75rem;"><i class="fas fa-exclamation-triangle"></i> Requer busca na outra filial</div>`;
+                } else {
+                    alertaEstoqueHTML = `<div class="text-danger small fw-bold mt-1" style="font-size: 0.75rem;"><i class="fas fa-times-circle"></i> Estoque Global Insuficiente!</div>`;
+                }
+            }
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'cart-item d-flex justify-content-between align-items-center';
+            itemDiv.innerHTML = `
+                <div style="flex: 1;">
+                    <div class="fw-bold text-dark lh-sm" style="font-size: 0.9rem;">${item.nome}</div>
+                    <div class="text-muted" style="font-size: 0.8rem;">${item.sku} | R$ ${item.preco.toFixed(2)}</div>
+                    ${alertaEstoqueHTML}
+                </div>
+                <div class="d-flex align-items-center ms-2">
+                    <input type="number" class="form-control form-control-sm text-center fw-bold me-2" style="width: 50px;" min="1" value="${item.quantidade}" onchange="mudarQtd(${index}, this.value)">
+                    <button class="btn btn-sm btn-light text-danger" onclick="removerItem(${index})"><i class="fas fa-trash"></i></button>
+                </div>
+            `;
+            listaCarrinho.appendChild(itemDiv);
+        });
+
+        labelTotal.innerText = `R$ ${somaTotal.toFixed(2)}`;
+    }
+
+    // Funcionalidades de Manipulação do Carrinho (Global para onclick do HTML)
+    window.mudarQtd = function(index, novaQtd) {
+        if (novaQtd < 1) novaQtd = 1;
+        carrinho[index].quantidade = parseInt(novaQtd);
+        atualizarUI();
+    }
+    
+    window.removerItem = function(index) {
+        carrinho.splice(index, 1);
+        atualizarUI();
+    }
+
+    // Re-renderiza avisos se o vendedor trocar a loja base
+    lojaSelect.addEventListener('change', atualizarUI);
+
+    // 4. Integração de Submissão com a nova API
+    const btnVendaDireta = document.getElementById('btnVendaDireta');
+    const btnConsignar = document.getElementById('btnConsignar');
+    const toastInstance = new bootstrap.Toast(document.getElementById('apiToast'));
+    
+    function abrirModalConfirmacao(tipoOperacao) {
+        if (carrinho.length === 0) {
+            mostrarToast('O carrinho está vazio!', 'bg-warning text-dark');
+            return;
+        }
+
+        const cliente_id = document.getElementById('clienteSelect').value;
+        if (tipoOperacao === 'CONSIGNACAO' && (!cliente_id || cliente_id === '0')) {
+            mostrarToast('Selecione um cliente válido para criar uma consignação!', 'bg-danger');
+            return;
+        }
+
+        // Configurar Título e Opções Fiscais
+        document.getElementById('operacaoPendenteTipo').value = tipoOperacao;
+        const titulo = document.getElementById('tituloConfirmacaoCheckout');
+        const opcoesFiscais = document.getElementById('opcoesFiscais');
+
+        if (tipoOperacao === 'VENDA_DIRETA') {
+            titulo.innerHTML = '<i class="fas fa-cash-register"></i> Confirmar Venda Direta';
+            opcoesFiscais.classList.remove('d-none');
+            document.getElementById('docSemNFE').checked = true; // reset
+        } else {
+            titulo.innerHTML = '<i class="fas fa-clipboard-list"></i> Confirmar Consignação';
+            opcoesFiscais.classList.add('d-none');
+        }
+
+        // Preencher Tabela de Itens
+        const tbody = document.getElementById('listaItensConfirmacao');
+        tbody.innerHTML = '';
+        let totalVal = 0;
+        
+        carrinho.forEach(item => {
+            const subtotal = item.preco * item.quantidade;
+            totalVal += subtotal;
+            tbody.innerHTML += `
+                <tr>
+                    <td>${item.nome}</td>
+                    <td class="text-center">${item.quantidade}</td>
+                    <td class="text-end">R$ ${subtotal.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+        document.getElementById('totalConfirmacao').innerText = 'R$ ' + totalVal.toFixed(2);
+
+        // Mostrar Modal
+        const modal = new bootstrap.Modal(document.getElementById('modalConfirmacaoCheckout'));
+        modal.show();
+    }
+
+    async function processarCheckoutFinal() {
+        // Fechar Modal
+        const modalEl = document.getElementById('modalConfirmacaoCheckout');
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if(modalInstance) modalInstance.hide();
+
+        const tipoOperacao = document.getElementById('operacaoPendenteTipo').value;
+        const cliente_id = document.getElementById('clienteSelect').value;
+        const loja_id = document.getElementById('lojaSelect').value;
+        const prazo_dias = document.getElementById('prazoDias').value;
+        
+        // Formatar payload para a API
+        const payloadCarrinho = carrinho.map(item => ({
+            id_produto: parseInt(item.id),
+            quantidade: item.quantidade
+        }));
+
+        const bodyData = {
+            tipo_operacao: tipoOperacao,
+            loja_id: parseInt(loja_id),
+            cliente_id: (cliente_id && cliente_id !== '0') ? parseInt(cliente_id) : null,
+            prazo_dias: parseInt(prazo_dias) || 7,
+            carrinho: payloadCarrinho
+        };
+
+        // Mostrar Loading
+        const loadingOverlay = document.getElementById('cartLoading');
+        loadingOverlay.classList.remove('d-none');
+        loadingOverlay.classList.add('d-flex');
+
+        try {
+            const response = await fetch('/api/pdv/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bodyData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Aqui você pode adicionar lógica de integração fiscal futura se docNFE ou docNFCe estiverem selecionados.
+                const tipoDocFiscal = document.querySelector('input[name="tipoDocumentoFiscal"]:checked')?.value;
+                if (tipoDocFiscal === 'nfe' || tipoDocFiscal === 'nfce') {
+                    // Simulação
+                    console.log('Solicitação de emissão fiscal enviada para API do Sefaz em Background...');
+                }
+
+                // Preenche os dados do Modal de Sucesso
+                document.getElementById('modalSucessoMensagem').innerText = data.mensagem;
+                
+                if (data.pdf_url) {
+                    if (tipoOperacao === 'CONSIGNACAO') {
+                        document.getElementById('modalSucessoTitulo').innerText = "Consignação Registada!";
+                        document.getElementById('modalSucessoPdfLink').innerHTML = '<i class="fas fa-print me-2"></i> Abrir Termo de Consignação (PDF)';
+                    } else {
+                        document.getElementById('modalSucessoTitulo').innerText = "Venda Finalizada!";
+                        document.getElementById('modalSucessoPdfLink').innerHTML = '<i class="fas fa-print me-2"></i> Abrir Comprovante de Venda (PDF)';
+                    }
+                    document.getElementById('modalSucessoPdfContainer').classList.remove('d-none');
+                    document.getElementById('modalSucessoPdfLink').href = data.pdf_url;
+                } else {
+                    document.getElementById('modalSucessoTitulo').innerText = "Operação Concluída!";
+                    document.getElementById('modalSucessoPdfContainer').classList.add('d-none');
+                }
+                
+                // Exibe o Modal
+                const modalSucesso = new bootstrap.Modal(document.getElementById('modalSucesso'));
+                modalSucesso.show();
+                
+                carrinho = []; // Esvaziar carrinho
+                atualizarUI();
+            } else {
+                mostrarToast('❌ ' + data.erro + ' ' + (data.detalhes || ''), 'bg-danger');
+            }
+        } catch (error) {
+            mostrarToast('❌ Erro de conexão com o servidor.', 'bg-danger');
+        } finally {
+            loadingOverlay.classList.add('d-none');
+            loadingOverlay.classList.remove('d-flex');
+        }
+    }
+
+    btnVendaDireta.addEventListener('click', () => abrirModalConfirmacao('VENDA_DIRETA'));
+    btnConsignar.addEventListener('click', () => abrirModalConfirmacao('CONSIGNACAO'));
+    document.getElementById('btnConfirmarCheckoutFinal').addEventListener('click', processarCheckoutFinal);addEventListener('click', () => processarCheckout('CONSIGNACAO'));
+
+    // Esconder o botão de consignação e prazo se "Consumidor Padrão" estiver selecionado
+    const clienteSelect = document.getElementById('clienteSelect');
+    const boxPrazoConsignacao = document.getElementById('boxPrazoConsignacao');
+    function atualizarEstadoConsignacao() {
+        if (clienteSelect.value === '0') {
+            btnConsignar.classList.add('d-none');
+            boxPrazoConsignacao.classList.add('d-none');
+        } else {
+            btnConsignar.classList.remove('d-none');
+            boxPrazoConsignacao.classList.remove('d-none');
+        }
+    }
+    clienteSelect.addEventListener('change', atualizarEstadoConsignacao);
+    atualizarEstadoConsignacao(); // Chamada inicial
+
+    function mostrarToast(mensagem, corClasse) {
+        const toastEl = document.getElementById('apiToast');
+        toastEl.className = `toast align-items-center text-white border-0 ${corClasse}`;
+        document.getElementById('toastMessage').innerText = mensagem;
+        toastInstance.show();
+    }
+
+</script>
+{% endblock %}

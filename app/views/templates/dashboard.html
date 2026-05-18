@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard e Inventário - Tite Eletricidade{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .chart-container { 
+        position: relative; 
+        height: 150px; 
+        width: 100%; 
+        display: flex; 
+        justify-content: center; 
+    }
+    .badge-stock { font-size: 0.85em; padding: 6px 12px; font-weight: 600; letter-spacing: 0.02em; }
+    /* Custom scrollbar para a tabela */
+    .table-responsive::-webkit-scrollbar { width: 6px; height: 6px; }
+    .table-responsive::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+    .table-responsive::-webkit-scrollbar-track { background-color: #f1f5f9; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 px-4">
+
+    <!-- Alertas de Reposição de Estoque (US06) -->
+    {% if alertas_baixo_estoque %}
+    <div class="alert alert-danger shadow-sm d-flex align-items-center mb-4 border-0" role="alert" style="border-radius: 12px; background-color: #ffe6e6;">
+        <i class="fas fa-exclamation-triangle fs-3 me-3 text-danger"></i>
+        <div>
+            <h5 class="alert-heading fw-bold mb-1 text-danger">Atenção Gestor: Necessidade de Reposição!</h5>
+            <span class="text-dark">{{ alertas_baixo_estoque|length }} produto(s) encontram-se com o Estoque Físico Total (Matriz + Filial) inferior a 15 unidades.</span>
+        </div>
+        <button class="btn btn-danger ms-auto rounded-pill px-4 shadow-sm fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAlertas">
+            <i class="fas fa-eye"></i> Ver Lista de Compras
+        </button>
+    </div>
+
+    <!-- Lista Colapsável com os Produtos Críticos -->
+    <div class="collapse mb-4" id="collapseAlertas">
+        <div class="card card-body border-danger bg-white shadow-sm" style="border-radius: 12px;">
+            <h6 class="text-danger fw-bold mb-3"><i class="fas fa-clipboard-list"></i> Produtos para comprar no Fornecedor:</h6>
+            <div class="d-flex flex-wrap gap-2">
+                {% for alerta in alertas_baixo_estoque %}
+                <span class="badge bg-danger p-2 shadow-sm border border-light" style="font-size: 0.95rem;">
+                    {{ alerta.sku }} - {{ alerta.nome }} <span class="badge bg-light text-danger ms-1">{{ alerta.fisico }} un.</span>
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Resumo Numérico e Gráficos -->
+    <div class="row mb-4 align-items-stretch">
+        <div class="col-md-4 mb-3 mb-md-0">
+            <div class="card h-100 p-4 bg-primary text-white d-flex flex-column justify-content-center align-items-center text-center shadow">
+                <h5 class="opacity-75"><i class="fas fa-boxes"></i> Físico na Rede</h5>
+                <h1 class="fw-bold display-4 mb-0">{{ total_fisico }}</h1>
+                <small>Unidades Físicas</small>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3 mb-md-0">
+            <div class="card h-100 p-4 bg-warning text-dark d-flex flex-column justify-content-center align-items-center text-center shadow">
+                <h5 class="opacity-75"><i class="fas fa-truck-loading"></i> Em Consignação</h5>
+                <h1 class="fw-bold display-4 mb-0">{{ total_reservado }}</h1>
+                <small>Unidades Reservadas</small>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3 mb-md-0">
+            <div class="card h-100 p-3 shadow">
+                <h6 class="card-title text-secondary text-center mb-2"><i class="fas fa-chart-pie text-primary"></i> Saúde do Estoque Físico</h6>
+                <div class="chart-container">
+                    <canvas id="consignacaoChart" 
+                            data-fisico="{{ total_fisico }}" 
+                            data-reservado="{{ total_reservado }}"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Inventário Consolidado (Merged from inventory.html) -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card p-0">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                    <h5 class="card-title text-secondary mb-0"><i class="fas fa-list text-success me-2"></i> Inventário Consolidado Detalhado</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>SKU</th>
+                                <th>Produto</th>
+                                <th>Preço (R$)</th>
+                                <!-- Colunas dinâmicas para as Lojas -->
+                                {% for loja in lojas %}
+                                <th class="text-center">Disp. {{ loja.nome }}</th>
+                                {% endfor %}
+                                <th class="text-center text-primary bg-light">Disponível (Rede)</th>
+                                <th class="text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in inventario %}
+                            <tr>
+                                <td class="text-muted fw-bold small">{{ item.sku }}</td>
+                                <td>{{ item.nome }}</td>
+                                <td>{{ "%.2f"|format(item.preco) }}</td>
+                                
+                                <!-- Estoque por loja -->
+                                {% for loja in lojas %}
+                                <td class="text-center">
+                                    {% set qtd = item.estoques[loja.id|string] %}
+                                    <span class="badge rounded-pill badge-stock {% if qtd > 5 %}bg-success{% elif qtd > 0 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                        {{ qtd }} un
+                                    </span>
+                                </td>
+                                {% endfor %}
+                                
+                                <!-- Estoque Global da Rede -->
+                                <td class="text-center fw-bold fs-5 text-primary bg-light">{{ item.estoque_global }}</td>
+                                
+                                <!-- Status de Alerta -->
+                                <td class="text-center" style="width: 150px;">
+                                    <span class="badge rounded-pill {{ item.status_class }} w-100 py-2">{{ item.status }}</span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-5">Nenhum produto cadastrado no momento.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                </div>
+                <div class="card-footer bg-white border-top-0 pt-0 pb-4 text-end">
+                    <small class="text-muted"><i class="fas fa-info-circle"></i> O alerta de "Baixo Estoque" dispara quando a quantidade global for ≤ 15 un.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // ==========================================
+    // LÓGICA DO GRÁFICO (CHART.JS)
+    // ==========================================
+    const canvasEl = document.getElementById('consignacaoChart');
+    const ctx = canvasEl.getContext('2d');
+    
+    // Lendo as variáveis através dos data-attributes para evitar erros no linter da IDE
+    const fisicoTotal = parseInt(canvasEl.getAttribute('data-fisico')) || 0;
+    const reservadoTotal = parseInt(canvasEl.getAttribute('data-reservado')) || 0;
+    const disponivel = fisicoTotal - reservadoTotal;
+
+    const dataValores = fisicoTotal === 0 ? [1] : [disponivel, reservadoTotal];
+    const dataCores = fisicoTotal === 0 ? ['#e9ecef'] : ['#20c997', '#ffc107'];
+    const dataLabels = fisicoTotal === 0 ? ['Sem Estoque'] : ['Livre', 'Em Consignação'];
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: dataLabels,
+            datasets: [{
+                data: dataValores,
+                backgroundColor: dataCores,
+                hoverOffset: 4,
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: { 
+                    position: 'right', 
+                    labels: { usePointStyle: true, padding: 15, font: { size: 11 } } 
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            if (fisicoTotal === 0) return ' 0 unidades';
+                            let val = context.raw;
+                            let percent = Math.round((val / fisicoTotal) * 100);
+                            return ` ${val} un (${percent}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+</script>
+{% endblock %}
