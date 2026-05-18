@@ -94,7 +94,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Preço Unitário (R$) *</label>
-                            <input type="number" class="form-control" id="p_preco" step="0.01" min="0" required>
+                            <input type="text" class="form-control text-end" id="p_preco" placeholder="0,00" oninput="mascaraMoeda(event)" required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Quantidade em Estoque</label>
@@ -132,6 +132,19 @@
         modal.show();
     }
 
+    function mascaraMoeda(event) {
+        let elemento = event.target;
+        let valor = elemento.value.replace(/\D/g, '');
+        if (valor === "") {
+            elemento.value = "";
+            return;
+        }
+        valor = (parseInt(valor) / 100).toFixed(2) + '';
+        valor = valor.replace(".", ",");
+        valor = valor.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+        elemento.value = valor;
+    }
+
     async function abrirModalEditar(id) {
         produtoEditandoId = id;
         document.getElementById('tituloModalProduto').innerHTML = '<i class="fas fa-edit"></i> Editar Produto';
@@ -147,7 +160,13 @@
             
             document.getElementById('p_sku').value = data.sku || '';
             document.getElementById('p_nome').value = data.nome || '';
-            document.getElementById('p_preco').value = data.preco || '';
+            
+            // Formatar preço retornado pela API
+            let precoAPI = parseFloat(data.preco || 0).toFixed(2);
+            let precoFormatado = precoAPI.replace(".", ",");
+            precoFormatado = precoFormatado.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+            document.getElementById('p_preco').value = precoFormatado;
+            
             document.getElementById('p_quantidade').value = data.quantidade || 0;
             document.getElementById('p_nf').value = data.nf_compra || '';
             
@@ -161,19 +180,22 @@
     async function salvarProduto() {
         const sku = document.getElementById('p_sku').value.trim();
         const nome = document.getElementById('p_nome').value.trim();
-        const preco = document.getElementById('p_preco').value;
+        const precoFormatado = document.getElementById('p_preco').value;
         const quantidade = document.getElementById('p_quantidade').value;
         const nf = document.getElementById('p_nf').value.trim();
 
-        if (!sku || !nome || !preco) {
+        if (!sku || !nome || !precoFormatado) {
             alert('SKU, Nome e Preço são obrigatórios!');
             return;
         }
 
+        // Converter string "1.000,00" para número float 1000.00
+        const precoNumerico = parseFloat(precoFormatado.replace(/\./g, '').replace(',', '.'));
+
         const payload = {
             sku: sku,
             nome: nome,
-            preco: parseFloat(preco),
+            preco: precoNumerico,
             quantidade: parseInt(quantidade),
             nf_compra: nf
         };
