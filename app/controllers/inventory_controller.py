@@ -11,6 +11,30 @@ inventory_bp = Blueprint('inventory', __name__)
 @inventory_bp.before_request
 def auto_migrate():
     from sqlalchemy import text
+    from app.models.inventory import Loja, Usuario, Categoria
+    
+    # 1. Garante que todas as tabelas existem (Cross-Database: SQLite/PostgreSQL)
+    try:
+        db.create_all()
+    except Exception as e:
+        print("Erro no db.create_all:", e)
+
+    # 2. Insere dados base se estiver vazio (Lojas e Categoria)
+    try:
+        if not Loja.query.first():
+            loja1 = Loja(nome='Loja 1 (Matriz)', cnpj='00000000000100')
+            loja2 = Loja(nome='Loja 2 (Filial)', cnpj='00000000000200')
+            db.session.add_all([loja1, loja2])
+            db.session.commit()
+            
+        if not Categoria.query.first():
+            cat_default = Categoria(nome='Geral')
+            db.session.add(cat_default)
+            db.session.commit()
+    except:
+        db.session.rollback()
+
+    # 3. Adição dinâmica de colunas para bancos antigos (apenas se já existiam e faltam colunas)
     try:
         db.session.execute(text("ALTER TABLE consignacoes ADD COLUMN data_limite DATETIME"))
         db.session.commit()
@@ -49,25 +73,7 @@ def auto_migrate():
         db.session.rollback()
 
     try:
-        # Cria tabela de usuarios se não existir (sqlite bypass)
-        db.session.execute(text("""
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username VARCHAR(50) UNIQUE NOT NULL,
-            password_hash VARCHAR(256) NOT NULL,
-            role VARCHAR(20) NOT NULL DEFAULT 'Vendedor',
-            loja_id INTEGER NOT NULL,
-            nome VARCHAR(150),
-            telefone VARCHAR(50),
-            email VARCHAR(150),
-            FOREIGN KEY(loja_id) REFERENCES lojas(id)
-        )
-        """))
-        db.session.commit()
-        
         # Cria usuário default Admin master se não existir
-        from app.models.inventory import Usuario, Loja
-        
         loja_matriz = Loja.query.first()
         if loja_matriz:
             master_admin = Usuario.query.filter_by(username='admin').first()
