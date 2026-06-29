@@ -106,6 +106,105 @@ def auto_migrate():
     except:
         db.session.rollback()
 
+@inventory_bp.route('/api/demo-populate', methods=['GET'])
+def populate_demo_data():
+    from app.models.inventory import Loja, Produto, Estoque, Categoria
+    
+    if Produto.query.first():
+        return jsonify({"mensagem": "Banco já possui produtos. Operação ignorada."}), 200
+        
+    try:
+        loja1 = Loja.query.filter_by(nome='Loja 1 (Matriz)').first()
+        loja2 = Loja.query.filter_by(nome='Loja 2 (Filial)').first()
+        
+        if not loja1 or not loja2:
+            return jsonify({"erro": "Lojas base não encontradas. Acesse a página inicial primeiro."}), 400
+
+        # Categorias
+        cat_geral = Categoria.query.filter_by(nome='Geral').first()
+        cat1 = Categoria(nome="Cabos")
+        cat2 = Categoria(nome="Disjuntores")
+        cat3 = Categoria(nome="Iluminação")
+        cat4 = Categoria(nome="Acessórios e Materiais")
+        db.session.add_all([cat1, cat2, cat3, cat4])
+        db.session.commit()
+        
+        # Lista de 40 Produtos Realistas
+        dados_produtos = [
+            {"nome": "Cabo Flexível 2.5mm Rolo 100m (Azul)", "sku": "CAB001", "preco": 145.90, "cat": cat1},
+            {"nome": "Cabo Flexível 2.5mm Rolo 100m (Preto)", "sku": "CAB002", "preco": 145.90, "cat": cat1},
+            {"nome": "Cabo Flexível 4.0mm Rolo 100m (Azul)", "sku": "CAB003", "preco": 210.50, "cat": cat1},
+            {"nome": "Cabo Flexível 4.0mm Rolo 100m (Vermelho)", "sku": "CAB004", "preco": 210.50, "cat": cat1},
+            {"nome": "Cabo Flexível 6.0mm Rolo 100m (Verde)", "sku": "CAB005", "preco": 320.00, "cat": cat1},
+            {"nome": "Cabo Flexível 10.0mm Rolo 100m (Preto)", "sku": "CAB006", "preco": 490.00, "cat": cat1},
+            {"nome": "Cabo Coaxial RG59 Rolo 100m", "sku": "CAB007", "preco": 180.00, "cat": cat1},
+            {"nome": "Fio Paralelo 2x1.5mm Rolo 100m", "sku": "CAB008", "preco": 110.00, "cat": cat1},
+            {"nome": "Fio Paralelo 2x2.5mm Rolo 100m", "sku": "CAB009", "preco": 165.00, "cat": cat1},
+            {"nome": "Cabo PP 2x1.5mm Rolo 100m", "sku": "CAB010", "preco": 280.00, "cat": cat1},
+            
+            {"nome": "Disjuntor DIN Monopolar 10A", "sku": "DIS010", "preco": 11.90, "cat": cat2},
+            {"nome": "Disjuntor DIN Monopolar 20A", "sku": "DIS020", "preco": 12.90, "cat": cat2},
+            {"nome": "Disjuntor DIN Monopolar 32A", "sku": "DIS032", "preco": 13.90, "cat": cat2},
+            {"nome": "Disjuntor DIN Bipolar 40A", "sku": "DIS040", "preco": 38.50, "cat": cat2},
+            {"nome": "Disjuntor DIN Bipolar 63A", "sku": "DIS063", "preco": 45.00, "cat": cat2},
+            {"nome": "Disjuntor DIN Tripolar 80A", "sku": "DIS080", "preco": 85.00, "cat": cat2},
+            {"nome": "Disjuntor DIN Tripolar 100A", "sku": "DIS100", "preco": 110.00, "cat": cat2},
+            {"nome": "Disjuntor DR Bipolar 40A", "sku": "DISDR40", "preco": 140.00, "cat": cat2},
+            {"nome": "Disjuntor DR Tetrapolar 63A", "sku": "DISDR63", "preco": 185.00, "cat": cat2},
+            {"nome": "Quadro de Distribuição 12 Disjuntores", "sku": "QDC012", "preco": 65.00, "cat": cat2},
+            
+            {"nome": "Lâmpada LED 9W Branca Fria", "sku": "LMP009-B", "preco": 8.50, "cat": cat3},
+            {"nome": "Lâmpada LED 9W Amarela Quente", "sku": "LMP009-A", "preco": 8.50, "cat": cat3},
+            {"nome": "Lâmpada LED 12W Branca Fria", "sku": "LMP012-B", "preco": 9.90, "cat": cat3},
+            {"nome": "Lâmpada LED 15W Branca Fria", "sku": "LMP015-B", "preco": 12.90, "cat": cat3},
+            {"nome": "Painel Plafon LED Embutir 18W Quadrado", "sku": "PLF018-Q", "preco": 24.90, "cat": cat3},
+            {"nome": "Painel Plafon LED Embutir 24W Redondo", "sku": "PLF024-R", "preco": 32.50, "cat": cat3},
+            {"nome": "Refletor LED 50W IP66", "sku": "REF050", "preco": 45.00, "cat": cat3},
+            {"nome": "Refletor LED 100W IP66", "sku": "REF100", "preco": 85.00, "cat": cat3},
+            {"nome": "Fita LED 5050 Rolo 5m c/ Fonte", "sku": "FTL005", "preco": 55.00, "cat": cat3},
+            {"nome": "Luminária de Emergência 30 LEDs", "sku": "LME030", "preco": 19.90, "cat": cat3},
+            
+            {"nome": "Placa 4x2 Cega", "sku": "PLC4X2-C", "preco": 4.50, "cat": cat4},
+            {"nome": "Placa 4x2 com 1 Tomada 10A", "sku": "PLC4X2-1T", "preco": 12.90, "cat": cat4},
+            {"nome": "Placa 4x2 com 2 Tomadas 10A", "sku": "PLC4X2-2T", "preco": 18.90, "cat": cat4},
+            {"nome": "Placa 4x2 com 1 Interruptor Simples", "sku": "PLC4X2-1I", "preco": 10.50, "cat": cat4},
+            {"nome": "Placa 4x2 com 2 Interruptores Paralelos", "sku": "PLC4X2-2P", "preco": 22.00, "cat": cat4},
+            {"nome": "Fita Isolante 3M 20m", "sku": "FIT020", "preco": 7.50, "cat": cat4},
+            {"nome": "Fita Isolante Alta Tensão 10m", "sku": "FIT010-AT", "preco": 15.00, "cat": cat4},
+            {"nome": "Eletroduto Corrugado 3/4 Amarelo 50m", "sku": "ELT034", "preco": 65.00, "cat": cat4},
+            {"nome": "Caixa de Passagem 4x2 Amarela", "sku": "CXP4X2", "preco": 1.50, "cat": cat4},
+            {"nome": "Conector Sindal 10mm (Barra)", "sku": "CON010", "preco": 5.90, "cat": cat4},
+        ]
+        
+        produtos_criados = []
+        for p in dados_produtos:
+            novo_prod = Produto(nome=p['nome'], sku=p['sku'], preco=p['preco'], categoria_id=p['cat'].id)
+            db.session.add(novo_prod)
+            produtos_criados.append(novo_prod)
+            
+        db.session.commit()
+        
+        # Gerar estoques aleatórios / fixos
+        import random
+        estoques = []
+        for prod in produtos_criados:
+            # Loja 1 costuma ter mais estoque
+            qtd_l1 = random.randint(10, 150)
+            estoques.append(Estoque(produto_id=prod.id, loja_id=loja1.id, quantidade_fisica=qtd_l1, quantidade_reservada=0))
+            
+            # Loja 2 (Filial)
+            qtd_l2 = random.randint(0, 50)
+            estoques.append(Estoque(produto_id=prod.id, loja_id=loja2.id, quantidade_fisica=qtd_l2, quantidade_reservada=0))
+            
+        db.session.add_all(estoques)
+        db.session.commit()
+        
+        return jsonify({"mensagem": "40 produtos e respectivos estoques de demonstração criados com sucesso!"}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"erro": str(e)}), 500
+
 @inventory_bp.route('/')
 @inventory_bp.route('/dashboard')
 @login_required
